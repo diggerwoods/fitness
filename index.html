@@ -44,6 +44,8 @@
         .day-selector { display: flex; gap: 6px; margin-bottom: 16px; overflow-x: auto; padding-bottom: 4px; }
         .day-selector button { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 8px 16px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; white-space: nowrap; cursor: pointer; }
         .day-selector button.active { background: var(--accent); color: #000; border-color: var(--accent); }
+        .user-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--dim); padding: 6px 20px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
+        .user-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
         canvas { max-height: 200px; margin-top: 12px; }
     </style>
 </head>
@@ -51,6 +53,10 @@
     <div class="header">
         <h1>Training Log</h1>
         <div class="subtitle">15 lbs by September - Let's go</div>
+        <div style="margin-top:10px;display:flex;justify-content:center;gap:8px;">
+            <button id="user-dave" class="user-btn active" onclick="switchUser('Dave')">Dave</button>
+            <button id="user-abbie" class="user-btn" onclick="switchUser('Abbie')">Abbie</button>
+        </div>
     </div>
 
     <div class="panel active" id="panel-workout">
@@ -150,6 +156,21 @@ const GOAL_DATE = '2026-09-01';
 
 let workoutPlan = [];
 let selectedDay = 1;
+let currentUser = localStorage.getItem('fitnessUser') || 'Dave';
+
+function switchUser(name) {
+    currentUser = name;
+    localStorage.setItem('fitnessUser', name);
+    document.getElementById('user-dave').classList.toggle('active', name === 'Dave');
+    document.getElementById('user-abbie').classList.toggle('active', name === 'Abbie');
+    loadTodayLogs();
+    loadTodayFood();
+    loadStats();
+}
+
+// Set initial state on load
+document.getElementById('user-dave').classList.toggle('active', currentUser === 'Dave');
+document.getElementById('user-abbie').classList.toggle('active', currentUser === 'Abbie');
 
 async function init() {
     // Load workout plan
@@ -214,7 +235,7 @@ async function saveWorkoutLog() {
     const notes = document.getElementById('log-notes').value;
     if (!exercise) return;
 
-    await db.from('workout_logs').insert({ exercise_name: exercise, sets_completed: sets || null, reps_completed: reps || null, weight_lbs: weight || null, notes: notes || null });
+    await db.from('workout_logs').insert({ exercise_name: exercise, sets_completed: sets || null, reps_completed: reps || null, weight_lbs: weight || null, notes: notes || null, user_name: currentUser });
 
     document.getElementById('log-sets').value = '';
     document.getElementById('log-reps').value = '';
@@ -225,7 +246,7 @@ async function saveWorkoutLog() {
 
 async function loadTodayLogs() {
     const today = new Date().toISOString().slice(0, 10);
-    const { data } = await db.from('workout_logs').select('*').gte('logged_at', today + 'T00:00:00').order('logged_at', { ascending: false });
+    const { data } = await db.from('workout_logs').select('*').eq('user_name', currentUser).gte('logged_at', today + 'T00:00:00').order('logged_at', { ascending: false });
     const container = document.getElementById('today-logs');
     if (!data || data.length === 0) { container.innerHTML = '<p style="color:var(--dim);font-size:0.8rem;">No exercises logged today yet.</p>'; return; }
     container.innerHTML = data.map(l => `<div class="log-entry"><span>${l.exercise_name} ${l.weight_lbs?l.weight_lbs+'lbs':''} ${l.sets_completed||''}x${l.reps_completed||''}</span><span class="time">${new Date(l.logged_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</span></div>`).join('');
@@ -235,14 +256,14 @@ async function saveBodyLog() {
     const weight = document.getElementById('body-weight').value;
     const notes = document.getElementById('body-notes').value;
     if (!weight) return;
-    await db.from('body_logs').insert({ weight_lbs: weight, notes: notes || null });
+    await db.from('body_logs').insert({ weight_lbs: weight, notes: notes || null, user_name: currentUser });
     document.getElementById('body-weight').value = '';
     document.getElementById('body-notes').value = '';
     loadWeightChart();
 }
 
 async function loadWeightChart() {
-    const { data } = await db.from('body_logs').select('*').order('logged_at');
+    const { data } = await db.from('body_logs').select('*').eq('user_name', currentUser).order('logged_at');
     if (!data || data.length === 0) { document.getElementById('weight-goal').innerHTML = '<p style="color:var(--dim);font-size:0.8rem;">Log your first weigh-in to see progress.</p>'; return; }
 
     const first = data[0].weight_lbs;
@@ -272,7 +293,7 @@ async function saveFoodLog() {
     const cals = document.getElementById('food-cals').value;
     const protein = document.getElementById('food-protein').value;
     if (!desc) return;
-    await db.from('food_logs').insert({ meal, description: desc, calories: cals || null, protein_g: protein || null });
+    await db.from('food_logs').insert({ meal, description: desc, calories: cals || null, protein_g: protein || null, user_name: currentUser });
     document.getElementById('food-desc').value = '';
     document.getElementById('food-cals').value = '';
     document.getElementById('food-protein').value = '';
@@ -281,7 +302,7 @@ async function saveFoodLog() {
 
 async function loadTodayFood() {
     const today = new Date().toISOString().slice(0, 10);
-    const { data } = await db.from('food_logs').select('*').gte('logged_at', today + 'T00:00:00').order('logged_at');
+    const { data } = await db.from('food_logs').select('*').eq('user_name', currentUser).gte('logged_at', today + 'T00:00:00').order('logged_at');
     const container = document.getElementById('today-food');
     if (!data || data.length === 0) { container.innerHTML = '<p style="color:var(--dim);font-size:0.8rem;">No meals logged today.</p>'; return; }
     const totalCals = data.reduce((s, m) => s + (m.calories || 0), 0);
@@ -293,12 +314,12 @@ async function loadTodayFood() {
 async function loadStats() {
     // Workouts in last 7 days
     const week = new Date(Date.now() - 7*24*60*60*1000).toISOString();
-    const { data: logs } = await db.from('workout_logs').select('logged_at').gte('logged_at', week);
+    const { data: logs } = await db.from('workout_logs').select('logged_at').eq('user_name', currentUser).gte('logged_at', week);
     const uniqueDays = new Set((logs||[]).map(l => l.logged_at.slice(0,10)));
     document.getElementById('s-workouts').textContent = uniqueDays.size;
 
     // Streak (consecutive days with logs)
-    const { data: allLogs } = await db.from('workout_logs').select('logged_at').order('logged_at', { ascending: false });
+    const { data: allLogs } = await db.from('workout_logs').select('logged_at').eq('user_name', currentUser).order('logged_at', { ascending: false });
     let streak = 0;
     if (allLogs && allLogs.length > 0) {
         let checkDate = new Date(); checkDate.setHours(0,0,0,0);
@@ -308,10 +329,10 @@ async function loadStats() {
     document.getElementById('s-streak').textContent = streak;
 
     // Weight
-    const { data: bodyData } = await db.from('body_logs').select('*').order('logged_at', { ascending: false }).limit(1);
+    const { data: bodyData } = await db.from('body_logs').select('*').eq('user_name', currentUser).order('logged_at', { ascending: false }).limit(1);
     if (bodyData && bodyData.length > 0) {
         document.getElementById('s-weight').textContent = bodyData[0].weight_lbs;
-        const { data: firstLog } = await db.from('body_logs').select('weight_lbs').order('logged_at').limit(1);
+        const { data: firstLog } = await db.from('body_logs').select('weight_lbs').eq('user_name', currentUser).order('logged_at').limit(1);
         if (firstLog && firstLog.length > 0) {
             const lost = firstLog[0].weight_lbs - bodyData[0].weight_lbs;
             document.getElementById('s-lost').textContent = lost.toFixed(1);
@@ -319,11 +340,11 @@ async function loadStats() {
     }
 
     // Recent workouts
-    const { data: recent } = await db.from('workout_logs').select('*').order('logged_at', { ascending: false }).limit(10);
+    const { data: recent } = await db.from('workout_logs').select('*').eq('user_name', currentUser).order('logged_at', { ascending: false }).limit(10);
     document.getElementById('recent-workouts').innerHTML = (recent||[]).map(l => `<div class="log-entry"><span>${l.exercise_name} ${l.weight_lbs?l.weight_lbs+'lbs':''} ${l.sets_completed||''}x${l.reps_completed||''}</span><span class="time">${new Date(l.logged_at).toLocaleDateString()}</span></div>`).join('') || '<p style="color:var(--dim);font-size:0.8rem;">No workouts yet.</p>';
 
     // Stats chart
-    const { data: allBody } = await db.from('body_logs').select('*').order('logged_at');
+    const { data: allBody } = await db.from('body_logs').select('*').eq('user_name', currentUser).order('logged_at');
     if (allBody && allBody.length > 1) {
         const ctx = document.getElementById('stats-chart');
         if (window.statsChartInstance) window.statsChartInstance.destroy();
