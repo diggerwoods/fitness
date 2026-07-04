@@ -60,6 +60,7 @@
     </div>
 
     <div class="panel active" id="panel-workout">
+        <div class="card" id="today-workout" style="border-color:var(--accent);"></div>
         <div class="day-selector" id="day-selector"></div>
         <div id="workout-list"></div>
     </div>
@@ -144,6 +145,10 @@
             <h3>Recent Workouts</h3>
             <div id="recent-workouts"></div>
         </div>
+        <div class="card">
+            <h3>This Month</h3>
+            <div id="workout-calendar" style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center;font-size:0.7rem;"></div>
+        </div>
     </div>
 
     <div class="tabs">
@@ -167,6 +172,17 @@ let workoutPlan = [];
 let selectedDay = 1;
 let currentUser = localStorage.getItem('fitnessUser') || 'Dave';
 
+// Weekly schedule: day of week (0=Sun) mapped to workout
+const WEEKLY_SCHEDULE = {
+    0: { name: 'Rest', day_number: 0 },
+    1: { name: 'Push', day_number: 1 },
+    2: { name: 'Pull', day_number: 2 },
+    3: { name: 'Rest', day_number: 0 },
+    4: { name: 'Legs', day_number: 3 },
+    5: { name: 'Full Body', day_number: 4 },
+    6: { name: 'Rest', day_number: 0 }
+};
+
 function switchUser(name) {
     currentUser = name;
     localStorage.setItem('fitnessUser', name);
@@ -186,11 +202,25 @@ async function init() {
     const { data } = await db.from('workout_plans').select('*').order('day_number').order('sort_order');
     workoutPlan = data || [];
 
+    // Determine today's workout
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    const todaySchedule = WEEKLY_SCHEDULE[dayOfWeek];
+    const dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+    const todayCard = document.getElementById('today-workout');
+    if (todaySchedule.day_number === 0) {
+        todayCard.innerHTML = `<h3 style="color:var(--accent2);">Today: ${dayNames[dayOfWeek]}</h3><p style="font-size:0.85rem;color:var(--dim);margin-top:4px;">Rest Day - Walk only</p>`;
+    } else {
+        todayCard.innerHTML = `<h3 style="color:var(--accent2);">Today: ${dayNames[dayOfWeek]} - ${todaySchedule.name}</h3><p style="font-size:0.85rem;color:var(--dim);margin-top:4px;">Tap below to view exercises</p>`;
+    }
+
     // Build day selector
     const days = [...new Set(workoutPlan.map(w => w.day_name))];
     const selector = document.getElementById('day-selector');
     days.forEach((day, i) => {
-        selector.innerHTML += `<button ${i===0?'class="active"':''} onclick="selectDay(${i+1},'${day}',this)">${day}</button>`;
+        const isToday = todaySchedule.name === day;
+        selector.innerHTML += `<button ${isToday?'class="active"':''} onclick="selectDay(${i+1},'${day}',this)">${day}</button>`;
     });
 
     // Populate exercise dropdown
@@ -198,7 +228,9 @@ async function init() {
     const exercises = [...new Set(workoutPlan.map(w => w.exercise_name))];
     exercises.forEach(e => { select.innerHTML += `<option value="${e}">${e}</option>`; });
 
-    selectDay(1, days[0]);
+    // Auto-select today's workout
+    const startDay = todaySchedule.day_number > 0 ? todaySchedule.day_number : 1;
+    selectDay(startDay, todaySchedule.day_number > 0 ? todaySchedule.name : days[0]);
     loadTodayLogs();
     loadTodayFood();
     loadStats();
@@ -375,6 +407,30 @@ async function loadStats() {
             options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#888', maxTicksLimit: 7 }, grid: { display: false } }, y: { ticks: { color: '#888' }, grid: { color: '#333' } } } }
         });
     }
+
+    // Workout calendar
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const firstDow = new Date(year, month, 1).getDay();
+    const monthStart = `${year}-${String(month+1).padStart(2,'0')}-01`;
+    const monthEnd = `${year}-${String(month+1).padStart(2,'0')}-${daysInMonth}`;
+    const { data: monthLogs } = await db.from('workout_logs').select('logged_at').eq('user_name', currentUser).gte('logged_at', monthStart).lte('logged_at', monthEnd + 'T23:59:59');
+    const activeDays = new Set((monthLogs||[]).map(l => parseInt(l.logged_at.slice(8,10))));
+
+    const cal = document.getElementById('workout-calendar');
+    let calHtml = ['S','M','T','W','T','F','S'].map(d => `<div style="color:var(--dim);font-weight:700;padding:4px;">${d}</div>`).join('');
+    for (let i = 0; i < firstDow; i++) calHtml += '<div></div>';
+    for (let d = 1; d <= daysInMonth; d++) {
+        const isToday = d === now.getDate();
+        const worked = activeDays.has(d);
+        const bg = worked ? 'var(--accent)' : isToday ? 'var(--surface2)' : 'transparent';
+        const color = worked ? '#000' : isToday ? 'var(--text)' : 'var(--dim)';
+        const border = isToday ? '1px solid var(--accent)' : 'none';
+        calHtml += `<div style="padding:6px;border-radius:4px;background:${bg};color:${color};border:${border};font-weight:${worked||isToday?'700':'400'}">${d}</div>`;
+    }
+    cal.innerHTML = calHtml;
 }
 
 init();
