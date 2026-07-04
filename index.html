@@ -84,6 +84,15 @@
 
     <div class="panel" id="panel-body">
         <div class="card">
+            <h3>Log Walk</h3>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                <input type="number" step="0.1" id="walk-distance" placeholder="Miles">
+                <input type="number" id="walk-duration" placeholder="Minutes">
+            </div>
+            <input type="text" id="walk-notes" placeholder="Notes (optional)">
+            <button class="btn" onclick="saveWalkLog()">Log Walk</button>
+        </div>
+        <div class="card">
             <h3>Log Weight</h3>
             <input type="number" step="0.1" id="body-weight" placeholder="Weight (lbs)">
             <input type="text" id="body-notes" placeholder="Notes (optional)">
@@ -260,6 +269,18 @@ async function saveBodyLog() {
     document.getElementById('body-weight').value = '';
     document.getElementById('body-notes').value = '';
     loadWeightChart();
+}
+
+async function saveWalkLog() {
+    const distance = document.getElementById('walk-distance').value;
+    const duration = document.getElementById('walk-duration').value;
+    const notes = document.getElementById('walk-notes').value;
+    if (!distance && !duration) return;
+    await db.from('walk_logs').insert({ distance_miles: distance || null, duration_minutes: duration || null, notes: notes || null, user_name: currentUser });
+    document.getElementById('walk-distance').value = '';
+    document.getElementById('walk-duration').value = '';
+    document.getElementById('walk-notes').value = '';
+    alert('Walk logged!');
 }
 
 async function loadWeightChart() {
