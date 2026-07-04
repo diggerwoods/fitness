@@ -259,16 +259,46 @@ function selectDay(num, name, btn) {
     if (btn) btn.classList.add('active');
     const exercises = workoutPlan.filter(w => w.day_number === num);
     document.getElementById('workout-list').innerHTML = exercises.map(e => `
-        <div class="exercise-row">
-            <div>
+        <div class="exercise-row" onclick="this.querySelector('.exercise-desc').style.display=this.querySelector('.exercise-desc').style.display==='none'?'block':'none'" style="cursor:pointer;flex-wrap:wrap;">
+            <div style="flex:1;">
                 <div class="exercise-name">${e.exercise_name}</div>
-                <div class="exercise-detail">${e.notes || ''}</div>
+                <div class="exercise-detail">${e.sets} x ${e.reps}</div>
             </div>
             <div style="text-align:right;">
-                <div class="exercise-sets">${e.sets} x ${e.reps}</div>
+                <div class="exercise-sets">${e.notes ? '&#9432;' : ''}</div>
+            </div>
+            <div class="exercise-desc" style="display:none;width:100%;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:0.8rem;color:var(--dim);line-height:1.5;">
+                ${getExerciseDescription(e.exercise_name, e.notes)}
             </div>
         </div>
     `).join('');
+}
+
+function getExerciseDescription(name, notes) {
+    const descriptions = {
+        'DB Bench Press': 'Lie on bench with dumbbells at chest height. Press up until arms are extended. Lower slowly (3 sec negative). Keep shoulder blades pinched together and feet flat on the floor.',
+        'Arnold DB Shoulder Press': 'Start with dumbbells at chest, palms facing you. As you press up, rotate palms to face forward at the top. Reverse on the way down. Full range of motion.',
+        'Pushups': 'Hands shoulder-width apart. Lower chest to the floor with elbows at 45 degrees. Push back up to full extension. Keep core tight throughout.',
+        'Plank': 'Forearms on the ground, body in a straight line from head to heels. Squeeze glutes, brace core, breathe steadily. No sagging or piking.',
+        'Pull-ups': 'Dead hang with palms facing away. Pull chin over the bar by driving elbows down. Lower all the way back to full extension. Use a band for assistance if needed.',
+        'DB Bent Over Row': 'One knee and hand on bench, other foot on floor. Pull dumbbell to hip, squeezing shoulder blade at the top. Lower with control. Keep back flat.',
+        'DB RDL': 'Stand with dumbbells in front of thighs. Hinge at hips, pushing them back. Keep slight bend in knees. Lower until you feel a stretch in hamstrings. Squeeze glutes to stand back up.',
+        'KB Swings': 'Feet shoulder-width apart. Hike the kettlebell back between legs, then drive hips forward explosively. Arms are just along for the ride. Power comes from the hips, not the arms.',
+        'Hanging Knee Raises': 'Hang from pull-up bar with straight arms. Raise knees to chest with control. Lower slowly. No swinging or momentum.',
+        'KB Goblet Squat': 'Hold kettlebell at chest with both hands. Squat deep, keeping chest up and knees tracking over toes. Drive through heels to stand.',
+        'DB Bulgarian Split Squat': 'Rear foot elevated on bench behind you. Lower front knee to 90 degrees. Keep torso upright. Drive through front heel to stand. This is your unilateral movement.',
+        'KB Deadlift': 'Straddle a heavy kettlebell. Hinge at hips, grab the handle, and stand by driving hips forward. Keep back flat and core braced.',
+        'KB Clean and Press': 'Clean the kettlebell to rack position (one smooth pull), then press overhead. Lower and repeat. Full body power movement. Explosive.',
+        'Dead Bug': 'Lie on back, arms straight up, knees at 90 degrees. Extend opposite arm and leg toward the floor while keeping lower back pressed into the ground. Alternate sides slowly.',
+        'DB Lateral Raises': 'Stand with dumbbells at sides. Raise arms out to the sides until parallel with floor. Keep a slight bend in elbows. Lower with control. Light weight, feel the burn.',
+        'DB Curl to Press': 'Curl dumbbells to shoulders, then immediately press overhead. Lower back to shoulders, then lower to sides. Two movements in one.',
+        'Walk': 'Steady pace, aim for 3 miles. Keep arms swinging naturally. Good posture, head up.'
+    };
+    let desc = descriptions[name] || '';
+    if (notes && desc) desc += '<br><br><strong>Cue:</strong> ' + notes;
+    else if (notes) desc = notes;
+    else if (!desc) desc = 'Tap to close.';
+    return desc;
 }
 
 async function saveWorkoutLog() {
